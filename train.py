@@ -1,5 +1,5 @@
 import numpy as np
-import os,sys,inspect
+import os, sys, inspect
 import tensorflow as tf
 import time
 from datetime import datetime
@@ -12,7 +12,6 @@ import sklearn.metrics as metrics
 from input import Dataset
 import globals as g_
 
-
 currentdir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
 parentdir = os.path.dirname(currentdir)
 sys.path.append(parentdir)
@@ -24,16 +23,16 @@ tf.app.flags.DEFINE_string('train_dir', osp.dirname(sys.argv[0]) + '/tmp/',
                            """and checkpoint.""")
 tf.app.flags.DEFINE_boolean('log_device_placement', False,
                             """Whether to log device placement.""")
-tf.app.flags.DEFINE_string('weights', '', 
-                            """finetune with a pretrained model""")
-tf.app.flags.DEFINE_string('caffemodel', '', 
-                            """finetune with a model converted by caffe-tensorflow""")
+tf.app.flags.DEFINE_string('weights', '',
+                           """finetune with a pretrained model""")
+tf.app.flags.DEFINE_string('caffemodel', '',
+                           """finetune with a model converted by caffe-tensorflow""")
 
 np.set_printoptions(precision=3)
 
 
 def train(dataset_train, dataset_val, ckptfile='', caffemodel=''):
-    print 'train() called'
+    print('train() called')
     is_finetune = bool(ckptfile)
     V = g_.NUM_VIEWS
     batch_size = FLAGS.batch_size
@@ -41,13 +40,12 @@ def train(dataset_train, dataset_val, ckptfile='', caffemodel=''):
     dataset_train.shuffle()
     dataset_val.shuffle()
     data_size = dataset_train.size()
-    print 'training size:', data_size
-
+    print('training size:', data_size)
 
     with tf.Graph().as_default():
         startstep = 0 if not is_finetune else int(ckptfile.split('-')[-1])
         global_step = tf.Variable(startstep, trainable=False)
-         
+
         # placeholders for graph input
         view_ = tf.placeholder('float32', shape=(None, V, 227, 227, 3), name='im0')
         y_ = tf.placeholder('int64', shape=(None), name='y')
@@ -62,7 +60,6 @@ def train(dataset_train, dataset_val, ckptfile='', caffemodel=''):
         # build the summary operation based on the F colection of Summaries
         summary_op = tf.summary.merge_all()
 
-
         # must be after merge_all_summaries
         validation_loss = tf.placeholder('float32', shape=(), name='validation_loss')
         validation_summary = tf.summary.scalar('validation_loss', validation_loss)
@@ -73,39 +70,39 @@ def train(dataset_train, dataset_val, ckptfile='', caffemodel=''):
 
         init_op = tf.global_variables_initializer()
         sess = tf.Session(config=tf.ConfigProto(log_device_placement=FLAGS.log_device_placement))
-        
+
         if is_finetune:
             # load checkpoint file
             saver.restore(sess, ckptfile)
-            print 'restore variables done'
+            print('restore variables done')
         elif caffemodel:
             # load caffemodel generated with caffe-tensorflow
             sess.run(init_op)
             model.load_alexnet_to_mvcnn(sess, caffemodel)
-            print 'loaded pretrained caffemodel:', caffemodel
+            print('loaded pretrained caffemodel:', caffemodel)
         else:
             # from scratch
             sess.run(init_op)
-            print 'init_op done'
+            print('init_op done')
 
         summary_writer = tf.summary.FileWriter(FLAGS.train_dir,
-                                               graph=sess.graph) 
+                                               graph=sess.graph)
 
         step = startstep
         for epoch in xrange(100):
-            print 'epoch:', epoch
+            print('epoch:', epoch)
 
             for batch_x, batch_y in dataset_train.batches(batch_size):
                 step += 1
 
                 start_time = time.time()
                 feed_dict = {view_: batch_x,
-                             y_ : batch_y,
-                             keep_prob_: 0.5 }
+                             y_: batch_y,
+                             keep_prob_: 0.5}
 
                 _, pred, loss_value = sess.run(
-                        [train_op, prediction,  loss,],
-                        feed_dict=feed_dict)
+                    [train_op, prediction, loss, ],
+                    feed_dict=feed_dict)
 
                 duration = time.time() - start_time
 
@@ -114,42 +111,40 @@ def train(dataset_train, dataset_val, ckptfile='', caffemodel=''):
                 # print training information
                 if step % 10 == 0 or step - startstep <= 30:
                     sec_per_batch = float(duration)
-                    print '%s: step %d, loss=%.2f (%.1f examples/sec; %.3f sec/batch)' \
-                         % (datetime.now(), step, loss_value,
-                                    FLAGS.batch_size/duration, sec_per_batch)
+                    print('%s: step %d, loss=%.2f (%.1f examples/sec; %.3f sec/batch)' \
+                          % (datetime.now(), step, loss_value,
+                             FLAGS.batch_size / duration, sec_per_batch))
 
-                        
                 # validation
-                if step % g_.VAL_PERIOD == 0:# and step > 0:
-                    val_losses = []
+                if step % g_.VAL_PERIOD == 0:  # and step > 0:
+                    val_losses = []./prepare_pretrained_alexnet.sh
                     predictions = np.array([])
-                    
+
                     val_y = []
                     for val_step, (val_batch_x, val_batch_y) in \
                             enumerate(dataset_val.sample_batches(batch_size, g_.VAL_SAMPLE_SIZE)):
                         val_feed_dict = {view_: val_batch_x,
-                                         y_  : val_batch_y,
-                                         keep_prob_: 1.0 }
+                                         y_: val_batch_y,
+                                         keep_prob_: 1.0}
                         val_loss, pred = sess.run([loss, prediction], feed_dict=val_feed_dict)
                         val_losses.append(val_loss)
                         predictions = np.hstack((predictions, pred))
                         val_y.extend(val_batch_y)
 
                     val_loss = np.mean(val_losses)
-                    
+
                     acc = metrics.accuracy_score(val_y[:predictions.size], np.array(predictions))
-                    print '%s: step %d, validation loss=%.4f, acc=%f' %\
-                            (datetime.now(), step, val_loss, acc*100.)
+                    print('%s: step %d, validation loss=%.4f, acc=%f' % \
+                          (datetime.now(), step, val_loss, acc * 100.))
 
                     # validation summary
                     val_loss_summ = sess.run(validation_summary,
-                            feed_dict={validation_loss: val_loss})
-                    val_acc_summ = sess.run(validation_acc_summary, 
-                            feed_dict={validation_acc: acc})
+                                             feed_dict={validation_loss: val_loss})
+                    val_acc_summ = sess.run(validation_acc_summary,
+                                            feed_dict={validation_acc: acc})
                     summary_writer.add_summary(val_loss_summ, step)
                     summary_writer.add_summary(val_acc_summ, step)
                     summary_writer.flush()
-
 
                 if step % 100 == 0:
                     # print 'running summary'
@@ -162,28 +157,25 @@ def train(dataset_train, dataset_val, ckptfile='', caffemodel=''):
                     saver.save(sess, checkpoint_path, global_step=step)
 
 
-
 def main(argv):
-    st = time.time() 
-    print 'start loading data'
+    st = time.time()
+    print('start loading data')
 
     listfiles_train, labels_train = read_lists(g_.TRAIN_LOL)
     listfiles_val, labels_val = read_lists(g_.VAL_LOL)
     dataset_train = Dataset(listfiles_train, labels_train, subtract_mean=False, V=g_.NUM_VIEWS)
     dataset_val = Dataset(listfiles_val, labels_val, subtract_mean=False, V=g_.NUM_VIEWS)
 
-    print 'done loading data, time=', time.time() - st
+    print('done loading data, time=', time.time() - st)
 
     train(dataset_train, dataset_val, FLAGS.weights, FLAGS.caffemodel)
 
 
 def read_lists(list_of_lists_file):
     listfile_labels = np.loadtxt(list_of_lists_file, dtype=str).tolist()
-    listfiles, labels  = zip(*[(l[0], int(l[1])) for l in listfile_labels])
+    listfiles, labels = zip(*[(l[0], int(l[1])) for l in listfile_labels])
     return listfiles, labels
-    
 
 
 if __name__ == '__main__':
     main(sys.argv)
-

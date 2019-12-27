@@ -57,8 +57,8 @@ class Dataset:
         self.shuffled = False
         self.subtract_mean = subtract_mean
         self.V = V
-        print 'dataset inited'
-        print '  total size:', len(listfiles)
+        print('dataset inited')
+        print('  total size:', len(listfiles))
 
     def shuffle(self):
         z = zip(self.listfiles, self.labels)
@@ -93,7 +93,7 @@ class Dataset:
                 x[j, ...] = s.views
                 y[j] = s.label
 
-            print 'load batch time:', time.time()-starttime, 'sec'
+            print('load batch time:', time.time()-starttime, 'sec')
             yield x, y
 
     def _load_shape(self, listfile):

@@ -117,7 +117,7 @@ def train(dataset_train, dataset_val, ckptfile='', caffemodel=''):
 
                 # validation
                 if step % g_.VAL_PERIOD == 0:  # and step > 0:
-                    val_losses = []./prepare_pretrained_alexnet.sh
+                    val_losses = []
                     predictions = np.array([])
 
                     val_y = []
